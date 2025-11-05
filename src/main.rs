@@ -13,7 +13,6 @@ static FONT_DATA: &[u8] = include_bytes!("../fonts/Lat2-Terminus16.psfu");
 static BLACK: u32 = 0x000000;
 #[entry]
 fn efi_main() -> Status {
-    // Exit boot services immediately for maximum control
     let gop_handle = boot::get_handle_for_protocol::<GraphicsOutput>().expect("Cannot load");
     let mut gop =
         boot::open_protocol_exclusive::<GraphicsOutput>(gop_handle).expect("Cannot get gop");
