@@ -1,20 +1,3 @@
-#[repr(C, packed)]
-struct psf1header {
-    magicnumber: [u8; 2],
-    mode: u8,
-    char_size: u8,
-}
-#[repr(C, packed)]
-struct psf2header {
-    magicnumber: [u8; 4],
-    version: u32,
-    header_size: u32,
-    flags: u32,
-    length: u32,
-    char_size: u32,
-    heigh: u32,
-    width: u32,
-}
 pub struct psffont {
     width: usize,
     height: usize,

@@ -8,7 +8,7 @@ use psfparser::psffont;
 use uefi::boot::*;
 use uefi::mem::memory_map::MemoryType;
 use uefi::prelude::*;
-use uefi::proto::console::gop::{self, GraphicsOutput};
+use uefi::proto::console::gop::GraphicsOutput;
 static FONT_DATA: &[u8] = include_bytes!("../fonts/Lat2-Terminus16.psfu");
 static BLACK: u32 = 0x000000;
 #[entry]

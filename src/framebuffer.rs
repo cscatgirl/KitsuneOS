@@ -86,11 +86,10 @@ impl FrameBuffer {
     pub fn write_string(&mut self, text: &str, mut x: usize, y: usize, color: u32, font: &psffont) {
         for ch in text.chars() {
             if ch == '\n' {
-                // Handle newline if needed
                 continue;
             }
             self.draw_char(ch, x, y, color, font);
-            x += font.width(); // Move to next character position
+            x += font.width();
         }
     }
     pub fn draw_rect(&mut self, x: usize, y: usize, width: usize, height: usize, color: u32) {
