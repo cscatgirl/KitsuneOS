@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+mod console;
 mod framebuffer;
 mod psfparser;
 use core::panic::PanicInfo;
@@ -10,6 +11,8 @@ use uefi::mem::memory_map::MemoryType;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 static FONT_DATA: &[u8] = include_bytes!("../fonts/Lat2-Terminus16.psfu");
+use spin::Once;
+static FONT: Once<psffont> = Once::new();
 static BLACK: u32 = 0x000000;
 #[entry]
 fn efi_main() -> Status {
@@ -32,28 +35,36 @@ fn efi_main() -> Status {
 }
 
 fn kernel_main(_mmap: uefi::mem::memory_map::MemoryMapOwned, fbinfo: FrameBufferInfo) -> ! {
-    let mut fb = FrameBuffer::new(fbinfo);
+    let fb = FrameBuffer::new(fbinfo);
+
     let font = match psffont::parse(FONT_DATA) {
         Ok(f) => f,
-        Err(_) => {
-            fb.clear_screen(BLACK);
-            loop {}
-        }
+        Err(_) => loop {},
     };
-    fb.clear_screen(BLACK);
-    fb.write_string("Is This Working ", 10, 10, 0x00FF00, &font);
-    fb.write_string("KitsuneOS is booting...", 10, 30, 0x00FF00, &font);
-    fb.write_string(
-        "Wow the framebuffer actually has been written",
-        10,
-        50,
-        0x00FF00,
-        &font,
-    );
+    FONT.call_once(|| font);
+    let font_ref = FONT.get().unwrap();
+    console::Console::init(fb, font_ref);
+    println!("=== KitsuneOS Boot ===");
+    println!();
+
+    println!("[OK] PSF font loaded successfully");
+    println!("[OK] Console initialized");
+    println!();
+
+    println!("Welcome to KitsuneOS!");
+    println!("Running on UEFI with framebuffer graphics");
+    println!();
+
+    // Test formatting
+    println!();
+
     loop {}
 }
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    println!();
+    println!("!!! KERNEL PANIC !!!");
+    println!("{}", info);
     loop {}
 }

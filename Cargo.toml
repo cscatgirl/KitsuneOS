@@ -12,5 +12,7 @@ name = "KitsuneOS"
 test = false
 bench = false
 [dependencies]
+mutex = "1.0.2"
 simple-psf = "0.1.2"
+spin = "0.10.0"
 uefi = "0.36.1"

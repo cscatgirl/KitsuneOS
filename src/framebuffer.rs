@@ -99,4 +99,44 @@ impl FrameBuffer {
             }
         }
     }
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+    pub fn get_pixel(&self, x: usize, y: usize) -> u32 {
+        if x >= self.width || y >= self.height {
+            return 0;
+        }
+
+        let pixel_offset = y * self.stride + x;
+        let byte_offset = pixel_offset * self.size_per_pixel;
+
+        if byte_offset + 3 >= self.buffer.len() {
+            return 0;
+        }
+
+        match self.pixel_format {
+            PixelFormat::Rgb => {
+                let r = self.buffer[byte_offset] as u32;
+                let g = self.buffer[byte_offset + 1] as u32;
+                let b = self.buffer[byte_offset + 2] as u32;
+                (r << 16) | (g << 8) | b
+            }
+            PixelFormat::Bgr => {
+                let b = self.buffer[byte_offset] as u32;
+                let g = self.buffer[byte_offset + 1] as u32;
+                let r = self.buffer[byte_offset + 2] as u32;
+                (r << 16) | (g << 8) | b
+            }
+            _ => {
+                let b = self.buffer[byte_offset] as u32;
+                let g = self.buffer[byte_offset + 1] as u32;
+                let r = self.buffer[byte_offset + 2] as u32;
+                (r << 16) | (g << 8) | b
+            }
+        }
+    }
 }
