@@ -1,19 +1,30 @@
 #![no_std]
 #![no_main]
+#![feature(abi_x86_interrupt)]
+mod apic;
 mod console;
 mod framebuffer;
+pub mod gdt;
+mod interupts;
 mod psfparser;
 use core::panic::PanicInfo;
 use framebuffer::{FrameBuffer, FrameBufferInfo};
 use psfparser::psffont;
 use uefi::boot::*;
-use uefi::mem::memory_map::MemoryType;
+use uefi::mem::memory_map::{MemoryMap, MemoryType};
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 static FONT_DATA: &[u8] = include_bytes!("../fonts/Lat2-Terminus16.psfu");
 use spin::Once;
+
+use crate::apic::has_apic;
 static FONT: Once<psffont> = Once::new();
 static BLACK: u32 = 0x000000;
+pub fn init() {
+    gdt::init();
+    interupts::init_idt();
+    apic::init();
+}
 #[entry]
 fn efi_main() -> Status {
     let gop_handle = boot::get_handle_for_protocol::<GraphicsOutput>().expect("Cannot load");
@@ -34,9 +45,8 @@ fn efi_main() -> Status {
     kernel_main(mmap, frame_info);
 }
 
-fn kernel_main(_mmap: uefi::mem::memory_map::MemoryMapOwned, fbinfo: FrameBufferInfo) -> ! {
+fn kernel_main(mmap: uefi::mem::memory_map::MemoryMapOwned, fbinfo: FrameBufferInfo) -> ! {
     let fb = FrameBuffer::new(fbinfo);
-
     let font = match psffont::parse(FONT_DATA) {
         Ok(f) => f,
         Err(_) => loop {},
@@ -44,20 +54,38 @@ fn kernel_main(_mmap: uefi::mem::memory_map::MemoryMapOwned, fbinfo: FrameBuffer
     FONT.call_once(|| font);
     let font_ref = FONT.get().unwrap();
     console::Console::init(fb, font_ref);
+    let mut usable_ram = 0;
+    let mut reserved_ram = 0;
+    for desc in mmap.entries() {
+        let mem = desc.page_count * 4096;
+        match desc.ty {
+            MemoryType::CONVENTIONAL => usable_ram += mem,
+            MemoryType::BOOT_SERVICES_CODE | MemoryType::BOOT_SERVICES_DATA => usable_ram += mem,
+            MemoryType::RESERVED => reserved_ram += mem,
+            _ => println!("{:?}", desc.ty),
+        }
+    }
+
+    println!("total usable ram: {}", usable_ram / (1024 * 1024));
+    println!("total reserved ram: {}", reserved_ram / (1024 * 1024));
+    println!("total ram: {}", (reserved_ram + usable_ram) / (1024 * 1024));
     println!("=== KitsuneOS Boot ===");
     println!();
-
+    print!("has apic {}", has_apic());
+    println!();
     println!("[OK] PSF font loaded successfully");
     println!("[OK] Console initialized");
     println!();
 
     println!("Welcome to KitsuneOS!");
     println!("Running on UEFI with framebuffer graphics");
+
     println!();
 
     // Test formatting
     println!();
-
+    init();
+    x86_64::instructions::interrupts::enable();
     loop {}
 }
 
