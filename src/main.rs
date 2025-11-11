@@ -6,9 +6,11 @@ mod console;
 mod framebuffer;
 pub mod gdt;
 mod interupts;
+mod keyboard;
 mod psfparser;
 use core::panic::PanicInfo;
 use framebuffer::{FrameBuffer, FrameBufferInfo};
+use keyboard::Keyboard;
 use psfparser::psffont;
 use uefi::boot::*;
 use uefi::mem::memory_map::{MemoryMap, MemoryType};
@@ -24,6 +26,14 @@ pub fn init() {
     gdt::init();
     interupts::init_idt();
     apic::init();
+    let mut keyboard = Keyboard::new();
+    keyboard.init();
+    x86_64::instructions::interrupts::enable();
+}
+pub fn hlt_loop() -> ! {
+    loop {
+        x86_64::instructions::hlt();
+    }
 }
 #[entry]
 fn efi_main() -> Status {
@@ -62,7 +72,7 @@ fn kernel_main(mmap: uefi::mem::memory_map::MemoryMapOwned, fbinfo: FrameBufferI
             MemoryType::CONVENTIONAL => usable_ram += mem,
             MemoryType::BOOT_SERVICES_CODE | MemoryType::BOOT_SERVICES_DATA => usable_ram += mem,
             MemoryType::RESERVED => reserved_ram += mem,
-            _ => println!("{:?}", desc.ty),
+            _ => {}
         }
     }
 
@@ -71,22 +81,16 @@ fn kernel_main(mmap: uefi::mem::memory_map::MemoryMapOwned, fbinfo: FrameBufferI
     println!("total ram: {}", (reserved_ram + usable_ram) / (1024 * 1024));
     println!("=== KitsuneOS Boot ===");
     println!();
-    print!("has apic {}", has_apic());
+    println!();
     println!();
     println!("[OK] PSF font loaded successfully");
     println!("[OK] Console initialized");
-    println!();
-
-    println!("Welcome to KitsuneOS!");
-    println!("Running on UEFI with framebuffer graphics");
-
-    println!();
-
-    // Test formatting
-    println!();
     init();
-    x86_64::instructions::interrupts::enable();
-    loop {}
+    println!();
+
+    println!("===Welcome to KitsuneOS!===");
+
+    hlt_loop();
 }
 
 #[panic_handler]
@@ -94,5 +98,5 @@ fn panic(info: &PanicInfo) -> ! {
     println!();
     println!("!!! KERNEL PANIC !!!");
     println!("{}", info);
-    loop {}
+    hlt_loop();
 }

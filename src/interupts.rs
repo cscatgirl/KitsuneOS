@@ -1,6 +1,7 @@
 use crate::apic::APIC_BASE;
 use crate::apic::write_apic_register;
 use crate::gdt;
+use crate::keyboard::handle_scancode;
 use crate::{print, println};
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
@@ -18,6 +19,7 @@ lazy_static! {
         idt[0xFF].set_handler_fn(spurious_interrupt_handler);
         idt[0x33].set_handler_fn(levt_error_handler);
         idt[32].set_handler_fn(timer_interup_handler);
+        idt[33].set_handler_fn(keyboard_handler);
         idt
     };
 }
@@ -43,8 +45,19 @@ extern "x86-interrupt" fn levt_error_handler(stackframe: InterruptStackFrame) {
     }
 }
 extern "x86-interrupt" fn timer_interup_handler(stackframe: InterruptStackFrame) {
-    print!("Tick");
+    //print!("Tick");
     unsafe {
+        write_apic_register(APIC_BASE, 0x0B0, 0);
+    }
+}
+extern "x86-interrupt" fn keyboard_handler(stackframe: InterruptStackFrame) {
+    use x86_64::instructions::port::Port;
+
+    unsafe {
+        let mut data_port = Port::<u8>::new(0x60);
+        let scancode = data_port.read();
+        handle_scancode(scancode);
+        // Send EOI to APIC
         write_apic_register(APIC_BASE, 0x0B0, 0);
     }
 }

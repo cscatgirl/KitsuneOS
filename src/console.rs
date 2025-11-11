@@ -77,6 +77,19 @@ impl Console {
             }
         }
     }
+    pub fn write_char_at(&mut self, ch: char, col: usize, row: usize) {
+        let screen_x = self.margin_l + self.char_width * col;
+        let screen_y = self.margin_t + self.char_height * row;
+        self.framebuffer.draw_rect(
+            screen_x,
+            screen_y,
+            self.char_width,
+            self.char_height,
+            self.bg_color,
+        );
+        self.framebuffer
+            .draw_char(ch, screen_x, screen_y, self.fg_color, self.font);
+    }
     fn newline(&mut self) {
         self.y += 1;
         self.x = 0;
@@ -126,6 +139,20 @@ pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     if let Some(ref mut console) = *CONSOLE.lock() {
         console.write_fmt(args).unwrap();
+    }
+}
+pub fn backspace() {
+    let mut console = CONSOLE.lock();
+    if let Some(ref mut console) = *console {
+        if console.x > 0 {
+            console.x -= 1;
+            console.write_char_at(' ', console.x, console.y);
+        } else if console.y > 0 {
+            console.y -= 1;
+            let max_cols = (console.screen_width - console.margin_l * 2) / console.char_width;
+            console.x = max_cols - 1;
+            console.write_char_at(' ', console.x, console.y);
+        }
     }
 }
 

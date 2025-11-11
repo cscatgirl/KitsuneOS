@@ -2,8 +2,13 @@ use core::arch::asm;
 use pic8259::ChainedPics;
 use x86_64::instructions::port::Port;
 use x86_64::registers::model_specific::Msr;
+
+use crate::println;
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
+const IOAPIC_BASE: usize = 0xFEC00000;
+const IOREGSEL: usize = 0x00;
+const IOWIN: usize = 0x10;
 pub static PICS: spin::Mutex<ChainedPics> =
     spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
 pub static mut APIC_BASE: usize = 0;
@@ -68,9 +73,38 @@ pub unsafe fn write_apic_register(apic_base: usize, offset: usize, value: u32) {
         apic_base.add(offset / 4).write_volatile(value);
     }
 }
+pub unsafe fn ioapic_read(reg: u8) -> u32 {
+    let regsel = (IOAPIC_BASE + IOREGSEL) as *mut u32;
+    let window = (IOAPIC_BASE + IOWIN) as *const u32;
+    unsafe {
+        regsel.write_volatile(reg as u32);
+        window.read_volatile()
+    }
+}
 
+pub unsafe fn ioapic_write(reg: u8, value: u32) {
+    let regsel = (IOAPIC_BASE + IOREGSEL) as *mut u32;
+    let window = (IOAPIC_BASE + IOWIN) as *mut u32;
+    unsafe {
+        regsel.write_volatile(reg as u32);
+        window.write_volatile(value);
+    }
+}
+pub fn enable_keyboard_inter() {
+    const KEYBOARD_IRQ: u8 = 1;
+    const KEYBOARD_VECTOR: u8 = 33;
+    let low_index = 0x10 + (KEYBOARD_IRQ * 2);
+    let high_index = low_index + 1;
+    let low_bit = KEYBOARD_VECTOR as u32;
+    let high_bit = 0u32;
+    unsafe {
+        ioapic_write(low_index, low_bit);
+        ioapic_write(high_index, high_bit);
+    }
+}
 pub fn init() {
     init_pics();
     disable_pics();
     enable_APIC();
+    enable_keyboard_inter();
 }
