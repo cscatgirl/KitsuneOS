@@ -12,6 +12,7 @@ name = "KitsuneOS"
 test = false
 bench = false
 [dependencies]
+bitflags = "2.10.0"
 mutex = "1.0.2"
 pic8259 = "0.11.0"
 simple-psf = "0.1.2"
