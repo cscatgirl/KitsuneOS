@@ -4,6 +4,8 @@ use crate::gdt;
 use crate::keyboard::handle_scancode;
 use crate::{print, println};
 use lazy_static::lazy_static;
+use x86_64::registers::control::Cr2;
+use x86_64::structures::idt::PageFaultErrorCode;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
@@ -20,6 +22,7 @@ lazy_static! {
         idt[0x33].set_handler_fn(levt_error_handler);
         idt[32].set_handler_fn(timer_interup_handler);
         idt[33].set_handler_fn(keyboard_handler);
+        idt.page_fault.set_handler_fn(page_fault_handler);
         idt
     };
 }
@@ -60,4 +63,13 @@ extern "x86-interrupt" fn keyboard_handler(stackframe: InterruptStackFrame) {
         // Send EOI to APIC
         write_apic_register(APIC_BASE, 0x0B0, 0);
     }
+}
+extern "x86-interrupt" fn page_fault_handler(
+    stackframe: InterruptStackFrame,
+    error_code: PageFaultErrorCode,
+) {
+    let fault_addr = Cr2::read();
+    println!("Page Fault at {:#x}", fault_addr.unwrap().as_u64());
+    println!("Error code {:?}", error_code);
+    println!("Stact Frame {:#?}", stackframe);
 }

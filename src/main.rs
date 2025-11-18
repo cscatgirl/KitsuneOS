@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
+//mod allocator;
+//mod allocator_types;
 mod apic;
 mod console;
 mod framebuffer;
@@ -11,6 +13,7 @@ mod memory;
 mod psfparser;
 use core::panic::PanicInfo;
 use core::u64;
+mod virtualmapper;
 use framebuffer::{FrameBuffer, FrameBufferInfo};
 use keyboard::Keyboard;
 use psfparser::psffont;
@@ -21,10 +24,11 @@ use uefi::proto::console::gop::GraphicsOutput;
 static FONT_DATA: &[u8] = include_bytes!("../fonts/Lat2-Terminus16.psfu");
 use spin::Once;
 use x86_64::PhysAddr;
-use x86_64::structures::paging::{FrameAllocator, PhysFrame, Size4KiB};
-
+use x86_64::structures::paging::{FrameAllocator, OffsetPageTable, PhysFrame, Size4KiB};
+//extern crate alloc;
 use crate::apic::has_apic;
 use crate::memory::{BitmapFrameAllocator, init_frame_allocator, with_frame_allocator};
+use crate::virtualmapper::map_physical_to_virtual;
 static FONT: Once<psffont> = Once::new();
 static BLACK: u32 = 0x000000;
 pub fn init() {
@@ -103,7 +107,8 @@ pub fn handle_memory(mmap: &uefi::mem::memory_map::MemoryMapOwned) {
     let bitmap_frames = (bitmap_size + 4095) / 4096;
     let bitmap_start_frame = (region_start / 4096) as usize;
     allocator.mark_range_used(bitmap_start_frame, bitmap_frames as usize);
-
+    allocator.mark_range_used(0, 256);
+    println!("[DEBUG] Reserved first 1MB (frames 0-255)");
     init_frame_allocator(allocator);
 }
 #[entry]
@@ -136,6 +141,10 @@ fn kernel_main(mmap: uefi::mem::memory_map::MemoryMapOwned, fbinfo: FrameBufferI
     let font_ref = FONT.get().unwrap();
     console::Console::init(fb, font_ref);
     handle_memory(&mmap);
+    // UEFI has already identity-mapped physical memory using huge pages.
+    // Attempting to remap causes issues when allocating new page table frames
+    // that aren't yet accessible. The existing mappings work fine for now.
+    map_physical_to_virtual(&mmap);
     println!("=== KitsuneOS Boot ===");
     println!();
     println!();
