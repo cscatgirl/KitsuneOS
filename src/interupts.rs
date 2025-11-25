@@ -1,6 +1,7 @@
 use crate::apic::APIC_BASE;
 use crate::apic::write_apic_register;
 use crate::gdt;
+use crate::hlt_loop;
 use crate::keyboard::handle_scancode;
 use crate::{print, println};
 use lazy_static::lazy_static;
@@ -72,4 +73,5 @@ extern "x86-interrupt" fn page_fault_handler(
     println!("Page Fault at {:#x}", fault_addr.unwrap().as_u64());
     println!("Error code {:?}", error_code);
     println!("Stact Frame {:#?}", stackframe);
+    hlt_loop();
 }

@@ -1,8 +1,9 @@
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
+#![feature(alloc_error_handler)]
 //mod allocator;
-//mod allocator_types;
+mod allocator_types;
 mod apic;
 mod console;
 mod framebuffer;
@@ -11,6 +12,7 @@ mod interupts;
 mod keyboard;
 mod memory;
 mod psfparser;
+use core::alloc::Layout;
 use core::panic::PanicInfo;
 use core::u64;
 mod virtualmapper;
@@ -25,12 +27,19 @@ static FONT_DATA: &[u8] = include_bytes!("../fonts/Lat2-Terminus16.psfu");
 use spin::Once;
 use x86_64::PhysAddr;
 use x86_64::structures::paging::{FrameAllocator, OffsetPageTable, PhysFrame, Size4KiB};
-//extern crate alloc;
-use crate::apic::has_apic;
+extern crate alloc;
 use crate::memory::{BitmapFrameAllocator, init_frame_allocator, with_frame_allocator};
-use crate::virtualmapper::map_physical_to_virtual;
+use crate::virtualmapper::{map_heap, map_physical_to_virtual};
 static FONT: Once<psffont> = Once::new();
 static BLACK: u32 = 0x000000;
+#[alloc_error_handler]
+fn alloc_error_handler(layout: Layout) -> ! {
+    panic!(
+        "Alloc error cannot allocat {} byter with alignment {}",
+        layout.size(),
+        layout.align()
+    );
+}
 pub fn init() {
     gdt::init();
     interupts::init_idt();
@@ -141,10 +150,17 @@ fn kernel_main(mmap: uefi::mem::memory_map::MemoryMapOwned, fbinfo: FrameBufferI
     let font_ref = FONT.get().unwrap();
     console::Console::init(fb, font_ref);
     handle_memory(&mmap);
-    // UEFI has already identity-mapped physical memory using huge pages.
-    // Attempting to remap causes issues when allocating new page table frames
-    // that aren't yet accessible. The existing mappings work fine for now.
-    map_physical_to_virtual(&mmap);
+    map_physical_to_virtual(&mmap, fbinfo.addr as u64, fbinfo.size);
+
+    map_heap(
+        allocator_types::linked_list::HEAP_START as u64,
+        allocator_types::linked_list::HEAP_SIZE,
+    );
+
+    unsafe {
+        allocator_types::init();
+    }
+    println!("[OK] Heap allocator initialized");
     println!("=== KitsuneOS Boot ===");
     println!();
     println!();
@@ -155,7 +171,23 @@ fn kernel_main(mmap: uefi::mem::memory_map::MemoryMapOwned, fbinfo: FrameBufferI
     println!();
 
     println!("===Welcome to KitsuneOS!===");
-
+    use alloc::{boxed::Box, vec::Vec};
+    let heap_value = Box::new(42);
+    assert_eq!(*heap_value, 42);
+    let mut vec = Vec::new();
+    for i in 0..100 {
+        vec.push(i);
+    }
+    println!("{:?}", vec);
+    assert_eq!(vec.len(), 100);
+    let mut boxes = Vec::new();
+    for i in 0..1000 {
+        boxes.push(Box::new(i));
+    }
+    drop(boxes);
+    let new_box = Box::new(999);
+    assert_eq!(*new_box, 999);
+    println!("[OK] Passed Heap Test");
     hlt_loop();
 }
 

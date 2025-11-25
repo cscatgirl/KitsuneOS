@@ -1,5 +1,6 @@
 use crate::psfparser::psffont;
 use uefi::proto::console::gop::PixelFormat;
+#[derive(Clone, Copy)]
 pub struct FrameBufferInfo {
     pub addr: usize,
     pub size: usize,
